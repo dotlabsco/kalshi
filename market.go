@@ -366,23 +366,80 @@ func (c *Client) MarketOrderBook(ctx context.Context, ticker string) (*MarketOrd
 	return &resp, nil
 }
 
-// Series is described here:
-// https://trading-api.readme.io/reference/getseries.
-type Series struct {
-	Frequency string `json:"frequency"`
-	Ticker    string `json:"ticker"`
-	Title     string `json:"title"`
+// SettlementSource represents a settlement source for a series.
+type SettlementSource struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
 }
 
 // Series is described here:
 // https://trading-api.readme.io/reference/getseries.
-func (c *Client) Series(ctx context.Context, seriesTicker string) (*Series, error) {
+type Series struct {
+	Ticker                string             `json:"ticker"`
+	Frequency             string             `json:"frequency"`
+	Title                 string             `json:"title"`
+	Category              string             `json:"category"`
+	Tags                  []string           `json:"tags"`
+	SettlementSources     []SettlementSource `json:"settlement_sources"`
+	ContractURL           string             `json:"contract_url"`
+	ContractTermsURL      string             `json:"contract_terms_url"`
+	FeeType               string             `json:"fee_type"`
+	FeeMultiplier         int                `json:"fee_multiplier"`
+	AdditionalProhibitions []string          `json:"additional_prohibitions"`
+	ProductMetadata       map[string]any     `json:"product_metadata"`
+	Volume                int                `json:"volume"`
+	VolumeFp              string             `json:"volume_fp"`
+}
+
+// ListSeriesRequest is described here:
+// https://trading-api.readme.io/reference/listseries.
+type ListSeriesRequest struct {
+	Category               string `url:"category,omitempty"`
+	Tags                   string `url:"tags,omitempty"`
+	IncludeProductMetadata bool   `url:"include_product_metadata,omitempty"`
+	IncludeVolume          bool   `url:"include_volume,omitempty"`
+}
+
+// ListSeriesResponse is described here:
+// https://trading-api.readme.io/reference/listseries.
+type ListSeriesResponse struct {
+	Series []Series `json:"series"`
+}
+
+// ListSeries is described here:
+// https://trading-api.readme.io/reference/listseries.
+func (c *Client) ListSeries(ctx context.Context, req ListSeriesRequest) (*ListSeriesResponse, error) {
+	var resp ListSeriesResponse
+
+	err := c.request(ctx, request{
+		Method:       "GET",
+		Endpoint:     "series",
+		QueryParams:  req,
+		JSONResponse: &resp,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &resp, nil
+}
+
+// GetSeriesRequest is described here:
+// https://trading-api.readme.io/reference/getseries.
+type GetSeriesRequest struct {
+	IncludeVolume bool `url:"include_volume,omitempty"`
+}
+
+// Series is described here:
+// https://trading-api.readme.io/reference/getseries.
+func (c *Client) Series(ctx context.Context, seriesTicker string, req GetSeriesRequest) (*Series, error) {
 	var resp struct {
 		Series Series `json:"series"`
 	}
 	err := c.request(ctx, request{
 		Method:       "GET",
 		Endpoint:     fmt.Sprintf("series/%s", seriesTicker),
+		QueryParams:  req,
 		JSONResponse: &resp,
 	})
 	if err != nil {
