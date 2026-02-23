@@ -237,7 +237,7 @@ func (c *Client) Markets(
 type Trade struct {
 	TradeID         string    `json:"trade_id"`
 	Ticker          string    `json:"ticker"`
-	Price           Cents     `json:"price"`
+	Price           float64   `json:"price"`
 	Count           int       `json:"count"`
 	CountFp         string    `json:"count_fp"`
 	YesPrice        Cents     `json:"yes_price"`
