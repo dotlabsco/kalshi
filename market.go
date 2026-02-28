@@ -113,8 +113,10 @@ type Market struct {
 	ResponsePriceUnits       string    `json:"response_price_units"`
 	YesBid                   Cents     `json:"yes_bid"`
 	YesBidDollars            string    `json:"yes_bid_dollars"`
+	YesBidSizeFp             string    `json:"yes_bid_size_fp"`
 	YesAsk                   Cents     `json:"yes_ask"`
 	YesAskDollars            string    `json:"yes_ask_dollars"`
+	YesAskSizeFp             string    `json:"yes_ask_size_fp"`
 	NoBid                    Cents     `json:"no_bid"`
 	NoBidDollars             string    `json:"no_bid_dollars"`
 	NoAsk                    Cents     `json:"no_ask"`
@@ -169,8 +171,6 @@ type Market struct {
 	} `json:"mve_selected_legs"`
 	PrimaryParticipantKey string `json:"primary_participant_key"`
 	IsProvisional         bool   `json:"is_provisional"`
-	Category              string `json:"category"`
-	RiskLimit             Cents  `json:"risk_limit_cents"`
 }
 
 func (m *Market) YesMidPrice() Cents {
@@ -302,45 +302,75 @@ func (c *Client) Market(ctx context.Context, ticker string) (*Market, error) {
 	return &resp.Market, nil
 }
 
-// MarketHistory is described here:
-// https://trading-api.readme.io/reference/getmarkethistory.
-type MarketHistory struct {
-	NoAsk        Cents     `json:"no_ask"`
-	NoBid        Cents     `json:"no_bid"`
-	OpenInterest int       `json:"open_interest"`
-	Ts           Timestamp `json:"ts"`
-	Volume       int       `json:"volume"`
-	YesAsk       Cents     `json:"yes_ask"`
-	YesBid       Cents     `json:"yes_bid"`
-	YesPrice     Cents     `json:"yes_price"`
-}
-
-// MarketHistoryResponse is described here:
-// https://trading-api.readme.io/reference/getmarkethistory.
-type MarketHistoryResponse struct {
-	CursorResponse
-	History []MarketHistory `json:"history"`
-	Ticker  string          `json:"ticker"`
-}
-
-// MarketHistoryRequest is described here:
-// https://trading-api.readme.io/reference/getmarkethistory.
-type MarketHistoryRequest struct {
-	CursorRequest
-	MinTS Timestamp `json:"min_ts,omitempty"`
-	MaxTS Timestamp `json:"max_ts,omitempty"`
-}
-
-func (c *Client) MarketHistory(
-	ctx context.Context,
-	ticker string,
-	req MarketHistoryRequest,
-) (*MarketHistoryResponse, error) {
-	var resp MarketHistoryResponse
-
+// HistoricalMarket is described here:
+// https://docs.kalshi.com/api-reference/historical/get-historical-market.
+func (c *Client) HistoricalMarket(ctx context.Context, ticker string) (*Market, error) {
+	var resp struct {
+		Market Market `json:"market"`
+	}
 	err := c.request(ctx, request{
 		Method:       "GET",
 		Endpoint:     fmt.Sprintf("historical/markets/%s", ticker),
+		JSONResponse: &resp,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &resp.Market, nil
+}
+
+// GetHistoricalMarketCandlesticksRequest is described here:
+// https://docs.kalshi.com/api-reference/historical/get-historical-market-candlesticks.
+type GetHistoricalMarketCandlesticksRequest struct {
+	Ticker         string `url:"-"`
+	StartTs        int64  `url:"start_ts,omitempty"`
+	EndTs          int64  `url:"end_ts,omitempty"`
+	PeriodInterval int    `url:"period_interval,omitempty"`
+}
+
+// HistoricalOhlc represents dollar-string-only OHLC values for historical markets.
+type HistoricalOhlc struct {
+	Open  string `json:"open"`
+	Low   string `json:"low"`
+	High  string `json:"high"`
+	Close string `json:"close"`
+}
+
+// HistoricalOhlcExtended represents extended OHLC values including Mean and Previous.
+type HistoricalOhlcExtended struct {
+	HistoricalOhlc
+	Mean     string `json:"mean"`
+	Previous string `json:"previous"`
+}
+
+// HistoricalCandlestick represents a single historical candlestick data point.
+type HistoricalCandlestick struct {
+	EndPeriodTs  int64                  `json:"end_period_ts"`
+	YesBid       HistoricalOhlc         `json:"yes_bid"`
+	YesAsk       HistoricalOhlc         `json:"yes_ask"`
+	Price        HistoricalOhlcExtended `json:"price"`
+	Volume       string                 `json:"volume"`
+	OpenInterest string                 `json:"open_interest"`
+}
+
+// GetHistoricalMarketCandlesticksResponse is described here:
+// https://docs.kalshi.com/api-reference/historical/get-historical-market-candlesticks.
+type GetHistoricalMarketCandlesticksResponse struct {
+	Ticker       string                  `json:"ticker"`
+	Candlesticks []HistoricalCandlestick `json:"candlesticks"`
+}
+
+// GetHistoricalMarketCandlesticks is described here:
+// https://docs.kalshi.com/api-reference/historical/get-historical-market-candlesticks.
+func (c *Client) GetHistoricalMarketCandlesticks(
+	ctx context.Context,
+	req GetHistoricalMarketCandlesticksRequest,
+) (*GetHistoricalMarketCandlesticksResponse, error) {
+	var resp GetHistoricalMarketCandlesticksResponse
+
+	err := c.request(ctx, request{
+		Method:       "GET",
+		Endpoint:     fmt.Sprintf("historical/markets/%s/candlesticks", req.Ticker),
 		QueryParams:  req,
 		JSONResponse: &resp,
 	})
