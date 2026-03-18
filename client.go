@@ -26,7 +26,7 @@ import (
 
 const (
 	APIDemoURL = "https://demo-api.kalshi.co/trade-api/v2/"
-	APIProdURL = "https://demo-api.kalshi.co/trade-api/v2/"
+	APIProdURL = "https://trading-api.kalshi.com/trade-api/v2/"
 )
 
 type Cents int
@@ -158,11 +158,11 @@ func (c *Client) request(
 		u.RawQuery = v.Encode()
 	}
 
-	// Do not block via Wait! Trades have to be
-	// fast to be meaningful!
+	// Reads: block until rate limit allows (pagination needs many sequential calls).
+	// Writes: non-blocking — trades must be fast; fail immediately if rate-limited.
 	if r.Method == "GET" {
-		if !c.ReadRateLimit.Allow() {
-			return fmt.Errorf("read ratelimit exceeded")
+		if err := c.ReadRateLimit.Wait(ctx); err != nil {
+			return fmt.Errorf("read ratelimit: %w", err)
 		}
 	} else {
 		if !c.WriteRatelimit.Allow() {
@@ -246,6 +246,14 @@ func basicRateLimit() *rate.Limiter {
 	return rate.NewLimiter(rate.Every(time.Second), 10)
 }
 
+// readRateLimit returns a more generous limiter for read operations.
+// Pagination (trending, analytics) requires many sequential calls; 10/s
+// burst is too small when the background warmer and user requests share
+// the same limiter.
+func readRateLimit() *rate.Limiter {
+	return rate.NewLimiter(rate.Every(100*time.Millisecond), 30)
+}
+
 // NewClient creates a new Kalshi client with RSA key-based authentication.
 // The client is ready to use immediately without needing to call Login.
 func NewClient(keyID string, privateKey *rsa.PrivateKey, baseURL string) *Client {
@@ -255,9 +263,8 @@ func NewClient(keyID string, privateKey *rsa.PrivateKey, baseURL string) *Client
 		keyID:      keyID,
 		privateKey: privateKey,
 		// See https://trading-api.readme.io/reference/tiers-and-rate-limits.
-		// Default to Basic access.
 		WriteRatelimit: basicRateLimit(),
-		ReadRateLimit:  basicRateLimit(),
+		ReadRateLimit:  readRateLimit(),
 	}
 
 	return c

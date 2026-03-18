@@ -84,9 +84,9 @@ func TestMarkets(t *testing.T) {
 			require.NotZero(t, market)
 		})
 
-		t.Run("MarketHistory", func(t *testing.T) {
+		t.Run("HistoricalMarket", func(t *testing.T) {
 			t.Parallel()
-			resp, err := client.MarketHistory(ctx, testMarket.Ticker, MarketHistoryRequest{})
+			resp, err := client.HistoricalMarket(ctx, testMarket.Ticker)
 			require.NoError(t, err)
 			require.NotZero(t, resp)
 		})
@@ -99,7 +99,7 @@ func TestSeries(t *testing.T) {
 	ctx := context.Background()
 	client := testClient(t)
 
-	resp, err := client.Series(ctx, "NASDAQ100")
+	resp, err := client.Series(ctx, "NASDAQ100", GetSeriesRequest{})
 	require.NoError(t, err)
 	require.NotEmpty(t, resp)
 }
